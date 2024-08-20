@@ -10,47 +10,70 @@ import { getV3Doc } from './swagger';
 import { prettify, toExpressLikePath } from './utils';
 import { Operation } from './transform';
 import { browserIntegration, mockTemplate, nodeIntegration, reactNativeIntegration } from './template';
-import { CliOptions, ConfigOptions } from './types';
+import { GlobalOptions, ConfigOptions, SpecWithOptions, SpecOptions } from './types';
 import { name as moduleName } from '../package.json';
 
-export function generateOperationCollection(apiDoc: OpenAPIV3.Document, options: CliOptions) {
+export function mergeOperationCollections(apiDocList: SpecWithOptions[]) {
+  const collectionList = apiDocList.flatMap(({ doc, options }) => generateOperationCollection(doc, options));
+  return Object.values(
+    collectionList.reduce<Record<string, Operation>>((acc, collection) => {
+      acc[collection.path] = collection;
+      return acc;
+    }, {}),
+  );
+}
+
+export function generateOperationCollection(apiDoc: OpenAPIV3.Document, options: SpecOptions = {}) {
   const apiGen = new ApiGenerator(apiDoc, {});
   const operationDefinitions = getOperationDefinitions(apiDoc);
 
   return operationDefinitions
     .filter(op => operationFilter(op, options))
     .map(op => codeFilter(op, options))
+    .map(op => prependPath(op, options))
     .map(definition => toOperation(definition, apiGen));
 }
 
-export async function generate(spec: string, inlineOptions: CliOptions) {
+export async function generate(
+  specList: { spec: string; options: SpecOptions }[] = [],
+  globalOptions: GlobalOptions = { output: '' },
+) {
   const explorer = cosmiconfig(moduleName);
-  const finalOptions: ConfigOptions = { ...inlineOptions };
+
+  const finalOptions: ConfigOptions = { ...globalOptions };
+
+  console.log(finalOptions);
 
   try {
     const result = await explorer.search();
+    console.log('resuklt', JSON.stringify(result));
     if (!result?.isEmpty) {
       Object.assign(finalOptions, result?.config);
+      specList = specList.concat(result?.config?.specList);
     }
   } catch (e) {
     console.log(e);
     process.exit(1);
   }
 
+  const apiDocList = await Promise.all(
+    specList.map(async item => ({ doc: await getV3Doc(item.spec), options: item.options })),
+  );
+
   const { output: outputFolder } = finalOptions;
   const targetFolder = path.resolve(process.cwd(), outputFolder);
 
-  let code: string;
-  const apiDoc = await getV3Doc(spec);
-  const operationCollection = generateOperationCollection(apiDoc, finalOptions);
+  const operationCollection = mergeOperationCollections(apiDocList);
 
   let baseURL = '';
   if (finalOptions.baseUrl === true) {
-    baseURL = getServerUrl(apiDoc);
+    // TODO: Figure out how to determine the baseURL from multiple API docs.
+    baseURL = getServerUrl(apiDocList[0].doc);
   } else if (typeof finalOptions.baseUrl === 'string') {
     baseURL = finalOptions.baseUrl;
   }
 
+  let code: string;
   code = mockTemplate(operationCollection, baseURL, finalOptions);
 
   try {
@@ -105,20 +128,20 @@ function getOperationDefinitions(v3Doc: OpenAPIV3.Document): OperationDefinition
   );
 }
 
-function operationFilter(operation: OperationDefinition, options: CliOptions): boolean {
+function operationFilter(operation: OperationDefinition, options: SpecOptions): boolean {
   const includes = options?.includes?.split(',') ?? null;
   const excludes = options?.excludes?.split(',') ?? null;
 
-  if (includes && !includes.includes(operation.path)) {
+  if (includes && !includes.some(pattern => new RegExp(pattern).exec(operation.path))) {
     return false;
   }
-  if (excludes?.includes(operation.path)) {
+  if (excludes && excludes.some(pattern => new RegExp(pattern).exec(operation.path))) {
     return false;
   }
   return true;
 }
 
-function codeFilter(operation: OperationDefinition, options: CliOptions): OperationDefinition {
+function codeFilter(operation: OperationDefinition, options: SpecOptions): OperationDefinition {
   const codes = options?.codes?.split(',') ?? null;
 
   const responses = Object.entries(operation.responses)
@@ -172,6 +195,14 @@ function toOperation(definition: OperationDefinition, apiGen: ApiGenerator): Ope
     path: toExpressLikePath(path),
     response: responseMap,
   };
+}
+
+function prependPath(operation: OperationDefinition, options: SpecOptions): OperationDefinition {
+  const prefix = options?.prefix?.split(',') ?? null;
+
+  operation.path = prefix ? prefix + operation.path : operation.path;
+
+  return operation;
 }
 
 const resolvingRefs: string[] = [];

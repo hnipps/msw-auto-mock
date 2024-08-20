@@ -17,7 +17,24 @@ cli
   .example('msw-auto-mock ./githubapi.yaml -o mock.js')
   .example('msw-auto-mock ./githubapi.yaml -o mock.js -t /admin,/repo -m 30')
   .action(async (spec, options) => {
-    await generate(spec, options).catch(console.error);
+    await generate(
+      [
+        {
+          spec,
+          options: {
+            includes: options.includes?.[0],
+            excludes: options.excludes?.[0],
+            codes: options.codes?.[0],
+          },
+        },
+      ],
+      {
+        output: options.output?.[0],
+        maxArrayLength: options.maxArrayLength?.[0],
+        baseUrl: options.baseUrl?.[0],
+        static: options.static?.[0],
+      },
+    ).catch(console.error);
   });
 
 cli.help();

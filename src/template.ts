@@ -1,4 +1,4 @@
-import { CliOptions, ConfigOptions } from './types';
+import { ConfigOptions } from './types';
 import { OperationCollection, transformToHandlerCode, transformToGenerateResultFunctions } from './transform';
 import { match } from 'ts-pattern';
 

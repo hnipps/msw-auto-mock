@@ -1,14 +1,20 @@
-export interface CliOptions {
-  output: string;
-  maxArrayLength?: number;
+import { OpenAPIV3 } from 'openapi-types';
+
+export interface SpecOptions {
   includes?: string;
   excludes?: string;
-  baseUrl?: string | true;
   codes?: string;
+  prefix?: string;
+}
+
+export interface GlobalOptions {
+  output: string;
+  maxArrayLength?: number;
+  baseUrl?: string | true;
   static?: boolean;
 }
 
-export type ConfigOptions = CliOptions & {
+export type ConfigOptions = GlobalOptions & {
   ai?: {
     enable?: boolean;
     provider: 'openai' | 'azure' | 'anthropic';
@@ -37,3 +43,5 @@ export type ConfigOptions = CliOptions & {
     };
   };
 };
+
+export type SpecWithOptions = { doc: OpenAPIV3.Document; options?: SpecOptions };

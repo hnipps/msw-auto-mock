@@ -1,0 +1,16 @@
+{
+  "specList": [
+    {
+      "spec": "test/fixture/test-2.yaml",
+      "options": {
+        "excludes": "/v2"
+      }
+    },
+    {
+      "spec": "test/fixture/test.yaml",
+      "options": {
+        "prefix": "/v3"
+      }
+    }
+  ]
+}

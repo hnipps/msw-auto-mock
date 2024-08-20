@@ -45,17 +45,6 @@ components:
           type: string
           enum:
             - success
-    ErrorResponse:
-      type: object
-      properties:
-        code:
-          type: integer
-          enum:
-            - 400
-        msg:
-          type: string
-          enum:
-            - error
 paths:
   /test:
     get:
@@ -82,13 +71,79 @@ paths:
   /test-again:
     get:
       responses:
-        '400':
+        '200':
           description: OK
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/ErrorResponse'
+                  - $ref: '#/components/schemas/OkResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          count:
+                            type: integer
+                          rows:
+                            type: array
+                            items:
+                              allOf:
+                               - $ref: '#/components/schemas/TestEntity'
+  /v2/test-again:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/OkResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          count:
+                            type: integer
+                          rows:
+                            type: array
+                            items:
+                              allOf:
+                               - $ref: '#/components/schemas/TestEntity'
+  /not-again:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/OkResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          count:
+                            type: integer
+                          rows:
+                            type: array
+                            items:
+                              allOf:
+                               - $ref: '#/components/schemas/TestEntity'
+  /or-this:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/OkResponse'
                   - type: object
                     properties:
                       data:
