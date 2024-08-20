@@ -6,7 +6,8 @@ import { version } from '../package.json';
 const cli = cac();
 
 cli
-  .command('<spec>', 'Generating msw mock definitions with random fake data.')
+  .command('', 'Generating msw mock definitions with random fake data.')
+  .option('-s, --spec <spec>', `Path to API spec.`)
   .option('-o, --output <directory>', `Output to a folder.`)
   .option('-m, --max-array-length <number>', `Max array length, default to 20.`)
   .option('-t, --includes <keywords>', `Include the request path with given string, can be seperated with comma.`)
@@ -16,25 +17,27 @@ cli
   .option('-c, --codes <keywords>', 'Comma separated list of status codes to generate responses for')
   .example('msw-auto-mock ./githubapi.yaml -o mock.js')
   .example('msw-auto-mock ./githubapi.yaml -o mock.js -t /admin,/repo -m 30')
-  .action(async (spec, options) => {
-    await generate(
-      [
-        {
-          spec,
-          options: {
-            includes: options.includes?.[0],
-            excludes: options.excludes?.[0],
-            codes: options.codes?.[0],
+  .action(async options => {
+    options?.spec
+      ? await generate(
+          [
+            {
+              spec: options.spec,
+              options: {
+                includes: options?.includes?.[0],
+                excludes: options?.excludes?.[0],
+                codes: options?.codes?.[0],
+              },
+            },
+          ],
+          {
+            output: options?.output?.[0],
+            maxArrayLength: options?.maxArrayLength?.[0],
+            baseUrl: options?.baseUrl?.[0],
+            static: options?.static?.[0],
           },
-        },
-      ],
-      {
-        output: options.output?.[0],
-        maxArrayLength: options.maxArrayLength?.[0],
-        baseUrl: options.baseUrl?.[0],
-        static: options.static?.[0],
-      },
-    ).catch(console.error);
+        ).catch(console.error)
+      : await generate();
   });
 
 cli.help();

@@ -42,11 +42,8 @@ export async function generate(
 
   const finalOptions: ConfigOptions = { ...globalOptions };
 
-  console.log(finalOptions);
-
   try {
     const result = await explorer.search();
-    console.log('resuklt', JSON.stringify(result));
     if (!result?.isEmpty) {
       Object.assign(finalOptions, result?.config);
       specList = specList.concat(result?.config?.specList);
