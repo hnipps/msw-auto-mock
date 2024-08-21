@@ -8,7 +8,7 @@ import { cosmiconfig } from 'cosmiconfig';
 
 import { getV3Doc } from './swagger';
 import { prettify, toExpressLikePath } from './utils';
-import { Operation } from './transform';
+import { Operation, ResponseMap } from './transform';
 import { browserIntegration, mockTemplate, nodeIntegration, reactNativeIntegration } from './template';
 import { GlobalOptions, ConfigOptions, SpecWithOptions, SpecOptions } from './types';
 import { name as moduleName } from '../package.json';
@@ -70,8 +70,54 @@ export async function generate(
     baseURL = finalOptions.baseUrl;
   }
 
-  let code: string;
-  code = mockTemplate(operationCollection, baseURL, finalOptions);
+  type DirectoryTree = {
+    name: string;
+    children: DirectoryTree[];
+    operation: Operation[] | null;
+  };
+
+  const Directory = (name: string): DirectoryTree => ({
+    name,
+    children: [],
+    operation: null,
+  });
+
+  const directoryStructure = operationCollection.reduce<DirectoryTree>((acc, { path, response, verb }) => {
+    path
+      .split('/')
+      .filter(part => part.length > 0)
+      .reduce((subAcc, part, i, list) => {
+        const dir = Directory(part);
+
+        if (i === list.length - 1) dir.operation = [{ path, response, verb }];
+
+        subAcc.children.push(dir);
+
+        return dir;
+      }, acc);
+    return acc;
+  }, Directory(targetFolder));
+
+  console.log('DIR', JSON.stringify(directoryStructure));
+
+  const traverse = async (tree: DirectoryTree, targetDir: string = '') => {
+    targetDir = path.join(targetDir, tree.name);
+
+    try {
+      fs.mkdirSync(targetDir);
+    } catch {}
+
+    if (tree.operation) {
+      const code = mockTemplate(tree.operation, baseURL, finalOptions);
+      fs.writeFileSync(path.resolve(process.cwd(), targetDir, 'handlers.js'), code);
+    }
+
+    for (let i = 0; i < tree.children.length; i++) {
+      traverse(tree.children[i], targetDir);
+    }
+  };
+
+  await traverse(directoryStructure);
 
   try {
     fs.mkdirSync(targetFolder);
@@ -80,7 +126,6 @@ export async function generate(
   fs.writeFileSync(path.resolve(process.cwd(), targetFolder, 'native.js'), reactNativeIntegration);
   fs.writeFileSync(path.resolve(process.cwd(), targetFolder, 'node.js'), nodeIntegration);
   fs.writeFileSync(path.resolve(process.cwd(), targetFolder, 'browser.js'), browserIntegration);
-  fs.writeFileSync(path.resolve(process.cwd(), targetFolder, 'handlers.js'), await prettify('handlers.js', code));
 }
 
 function getServerUrl(apiDoc: OpenAPIV3.Document) {
