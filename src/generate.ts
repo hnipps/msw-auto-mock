@@ -9,15 +9,16 @@ import { cosmiconfig } from 'cosmiconfig';
 import { getV3Doc } from './swagger';
 import { prettify, toExpressLikePath } from './utils';
 import { Operation, ResponseMap } from './transform';
-import { browserIntegration, mockTemplate, nodeIntegration, reactNativeIntegration } from './template';
+import { browserIntegration, getImport, mockTemplate, nodeIntegration, reactNativeIntegration } from './template';
 import { GlobalOptions, ConfigOptions, SpecWithOptions, SpecOptions } from './types';
 import { name as moduleName } from '../package.json';
+import { isNull } from 'lodash';
 
 export function mergeOperationCollections(apiDocList: SpecWithOptions[]) {
   const collectionList = apiDocList.flatMap(({ doc, options }) => generateOperationCollection(doc, options));
   return Object.values(
     collectionList.reduce<Record<string, Operation>>((acc, collection) => {
-      acc[collection.path] = collection;
+      acc[`${collection.path}-${collection.verb}`] = collection;
       return acc;
     }, {}),
   );
@@ -72,35 +73,61 @@ export async function generate(
 
   type DirectoryTree = {
     name: string;
-    children: DirectoryTree[];
+    children: Record<string, DirectoryTree>;
     operation: Operation[] | null;
   };
 
   const Directory = (name: string): DirectoryTree => ({
     name,
-    children: [],
+    children: {},
     operation: null,
   });
+
+  const traverse = (tree: DirectoryTree, path: string[]) => {
+    console.log('traversing...', { tree, path });
+    if (path.length > 0) {
+      const nextPart = path.shift();
+      if (typeof nextPart === 'undefined') throw new Error('Path ended unexpectedly!');
+      const nextTree = tree.children[nextPart];
+      if (typeof tree.children[nextPart] === 'undefined') return null;
+      return traverse(nextTree, path);
+    }
+    return tree;
+  };
 
   const directoryStructure = operationCollection.reduce<DirectoryTree>((acc, { path, response, verb }) => {
     path
       .split('/')
       .filter(part => part.length > 0)
       .reduce((subAcc, part, i, list) => {
-        const dir = Directory(part);
+        console.log(' ');
+        console.log('Working on:', { subAcc, part, i, list });
+        const dir = traverse(acc, list.slice(0, i + 1)) ?? Directory(part);
+        if (i === list.length - 1) {
+          console.log('inside', { dir, part });
+          dir.operation = [...(dir.operation ?? []), { path, response, verb }];
+          console.log('Inserted', dir);
+          console.log(' ');
+        }
+        subAcc.children[part] = dir;
+        console.log('again', { dir, part, subAcc });
 
-        if (i === list.length - 1) dir.operation = [{ path, response, verb }];
-
-        subAcc.children.push(dir);
-
+        console.log(' ');
         return dir;
       }, acc);
     return acc;
   }, Directory(targetFolder));
 
-  console.log('DIR', JSON.stringify(directoryStructure));
+  fs.writeFileSync(path.resolve(process.cwd(), targetFolder, 'structure.json'), JSON.stringify(directoryStructure));
 
-  const traverse = async (tree: DirectoryTree, targetDir: string = '') => {
+  const barrelDir = path.resolve(process.cwd(), targetFolder);
+  const barrelFilePath = path.resolve(barrelDir, 'handlers.js');
+  try {
+    fs.rmSync(barrelFilePath);
+  } catch {}
+  fs.writeFileSync(barrelFilePath, 'export let handlers = [];\n\n');
+
+  const writeHandlersAndResponses = async (tree: DirectoryTree, targetDir: string = '') => {
     targetDir = path.join(targetDir, tree.name);
 
     try {
@@ -109,16 +136,19 @@ export async function generate(
 
     if (tree.operation) {
       const code = mockTemplate(tree.operation, baseURL, finalOptions);
-      fs.writeFileSync(path.resolve(process.cwd(), targetDir, 'responses.js'), code.responses);
-      fs.writeFileSync(path.resolve(process.cwd(), targetDir, 'handlers.js'), code.handlers);
+      const operationDir = path.resolve(process.cwd(), targetDir);
+      fs.writeFileSync(path.resolve(operationDir, 'responses.js'), code.responses);
+      fs.writeFileSync(path.resolve(operationDir, 'handlers.js'), code.handlers);
+      fs.appendFileSync(barrelFilePath, getImport(operationDir, barrelDir));
     }
 
-    for (let i = 0; i < tree.children.length; i++) {
-      traverse(tree.children[i], targetDir);
+    const childKeys = Object.keys(tree.children);
+    for (let i = 0; i < childKeys.length; i++) {
+      writeHandlersAndResponses(tree.children[childKeys[i]], targetDir);
     }
   };
 
-  await traverse(directoryStructure);
+  await writeHandlersAndResponses(directoryStructure);
 
   try {
     fs.mkdirSync(targetFolder);

@@ -6,12 +6,8 @@ import {
   transformToResultFunctionNames,
 } from './transform';
 import { match } from 'ts-pattern';
-
-const getImportsCode = () => {
-  const imports = [`import { HttpResponse, http } from 'msw';`, `import { faker } from '@faker-js/faker';`];
-
-  return imports.join('\n');
-};
+import path from 'node:path';
+import { camelCase } from 'lodash';
 
 export const mockTemplate = (operationCollection: OperationCollection, baseURL: string, options: ConfigOptions) => ({
   handlers: `/**
@@ -149,4 +145,15 @@ const withCacheOne = (ask) => async (operation) => {
   }
 
   return '';
+}
+
+export function getImport(importPath: string, filePath: string) {
+  const relativeHandlersPath = path.relative(filePath, path.resolve(importPath, 'handlers'));
+  const handlerSymbol = camelCase(relativeHandlersPath);
+  return [
+    `import { handlers as ${handlerSymbol} } from './${relativeHandlersPath}';`,
+    `export * from './${path.relative(filePath, path.resolve(importPath, 'responses'))}';`,
+    `handlers = handlers.concat(${handlerSymbol});`,
+    `\n`,
+  ].join('\n');
 }

@@ -82,13 +82,14 @@ export function transformToGenerateResultFunctions(
 
 export function transformToResultFunctionNames(operationCollection: OperationCollection): string {
   const nameList = operationCollection.map(op =>
-    op.response.map(r => {
+    op.response.reduce<string[]>((acc, r) => {
       const name = getResIdentifierName(r);
       if (!name) {
-        return '';
+        return acc;
       }
-      return name;
-    }),
+      acc.push(name);
+      return acc;
+    }, []),
   );
   return `import { ${nameList.join(', ')} } from './responses.js';\n`;
 }
@@ -96,20 +97,20 @@ export function transformToResultFunctionNames(operationCollection: OperationCol
 export function transformToHandlerCode(operationCollection: OperationCollection): string {
   return operationCollection
     .map(op => {
+      if (op.path.includes('user-program-details')) {
+        console.log({ op, operationCollection });
+      }
       return `http.${op.verb}(\`\${baseURL}${op.path}\`, async () => {
-        const result = ${
-          op.response
-            .filter(({ code }) => {
-              console.log({ code, result: code.startsWith('20') });
-              return code.startsWith('20');
-            })
-            .map(response => {
-              const identifier = getResIdentifierName(response);
-              return `[${identifier ? `await ${identifier}()` : 'undefined'}, { status: ${parseInt(response?.code!)} }]`;
-            })[0]
-        };
-
-          return HttpResponse.json(result)
+          return HttpResponse.json(${
+            op.response
+              .filter(({ code }) => {
+                return code.startsWith('20');
+              })
+              .map(response => {
+                const identifier = getResIdentifierName(response);
+                return `${identifier ? `await ${identifier}()` : 'undefined'}, { status: ${parseInt(response?.code!)} }`;
+              })[0]
+          })
         }),\n`;
     })
     .join('  ')

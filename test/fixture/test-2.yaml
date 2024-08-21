@@ -134,6 +134,27 @@ paths:
                             items:
                               allOf:
                                - $ref: '#/components/schemas/TestEntity'
+    patch:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/OkResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          count:
+                            type: integer
+                          rows:
+                            type: array
+                            items:
+                              allOf:
+                               - $ref: '#/components/schemas/TestEntity'
   /or-this:
     get:
       responses:
