@@ -109,7 +109,8 @@ export async function generate(
 
     if (tree.operation) {
       const code = mockTemplate(tree.operation, baseURL, finalOptions);
-      fs.writeFileSync(path.resolve(process.cwd(), targetDir, 'handlers.js'), code);
+      fs.writeFileSync(path.resolve(process.cwd(), targetDir, 'responses.js'), code.responses);
+      fs.writeFileSync(path.resolve(process.cwd(), targetDir, 'handlers.js'), code.handlers);
     }
 
     for (let i = 0; i < tree.children.length; i++) {

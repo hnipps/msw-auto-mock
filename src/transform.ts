@@ -80,18 +80,36 @@ export function transformToGenerateResultFunctions(
     .join('\n');
 }
 
+export function transformToResultFunctionNames(operationCollection: OperationCollection): string {
+  const nameList = operationCollection.map(op =>
+    op.response.map(r => {
+      const name = getResIdentifierName(r);
+      if (!name) {
+        return '';
+      }
+      return name;
+    }),
+  );
+  return `import { ${nameList.join(', ')} } from './responses.js';\n`;
+}
+
 export function transformToHandlerCode(operationCollection: OperationCollection): string {
   return operationCollection
     .map(op => {
       return `http.${op.verb}(\`\${baseURL}${op.path}\`, async () => {
-        const resultArray = [${op.response.map(response => {
-          const identifier = getResIdentifierName(response);
-          return parseInt(response?.code!) === 204
-            ? `[undefined, { status: ${parseInt(response?.code!)} }]`
-            : `[${identifier ? `await ${identifier}()` : 'undefined'}, { status: ${parseInt(response?.code!)} }]`;
-        })}];
+        const result = ${
+          op.response
+            .filter(({ code }) => {
+              console.log({ code, result: code.startsWith('20') });
+              return code.startsWith('20');
+            })
+            .map(response => {
+              const identifier = getResIdentifierName(response);
+              return `[${identifier ? `await ${identifier}()` : 'undefined'}, { status: ${parseInt(response?.code!)} }]`;
+            })[0]
+        };
 
-          return HttpResponse.json(...resultArray[next() % resultArray.length])
+          return HttpResponse.json(result)
         }),\n`;
     })
     .join('  ')
